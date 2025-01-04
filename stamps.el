@@ -376,7 +376,7 @@ current buffer's file name."
     (when resources
       (setf (stamps-container-resources container) resources)
       (while-let ((resource (pop resources)))
-	(stamps-put-in-table resources citekey 'loaded-resources)))))
+	(stamps-put-in-table resource citekey 'loaded-resources)))))
 
 (defun stamps-load-citekey (citekey)
   "Create   container  and   find  notes   related  to   CITEKEY  in
