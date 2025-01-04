@@ -6,7 +6,7 @@
 ;; Maintainer: Mirko Hernandez <mirkoh@fastmail.com>>
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Version: 0.1.0
-;; Keywords: annotations notes 
+;; Keywords: annotations notes
 ;; URL: https://github.com/MirkoHernandez/stamps
 ;; Package-Requires: ((emacs "27.1"))
 
@@ -52,6 +52,7 @@ usually an xref struct used  for navigating to the note."
 	       (:constructor stamps-make-container (&key
 						    citekey
 						    name
+						    type
 						    notes)))
   "NOTES is a  hash table of notes, each key  is a number describing
 the note index, the value  is the note object; NUMBER-OF-NOTES is
@@ -60,13 +61,14 @@ to  the citekey;  ACTIVE-RESOURCE is  the last  visited resource;
 ACTIVE-NOTE is the index (the key) of the last visited note."
   citekey
   name
-  (notes (make-hash-table))
+  (notes nil)
   (number-of-notes 0)
   (resources)
   (resources-relative-path)
   (active-resource)
   (sorted-note-keys)
-  (active-note 0))
+  (active-note 0)
+  type)
 
 (cl-defstruct (stamps-table
 	       (:constructor stamps-make-tables (&key
@@ -96,11 +98,13 @@ ACTIVE-NOTE is the index (the key) of the last visited note."
 	       ) notes)))
 
 (cl-defmethod stamps-container-add-note ((container stamps-container)
-					     index note)
+					 index note)
   (pcase-let (((cl-struct stamps-container notes number-of-notes) container))
-    (puthash index  note notes)
+    ;; (puthash index  note notes)
+    (aset notes index note)
     (setf (stamps-container-number-of-notes container)
-	  (length (hash-table-keys notes)))))
+	  ;; (length (hash-table-keys notes))
+	  (length notes))))
 
 ;;;; Regexps
 ;; Timestamps
@@ -113,7 +117,7 @@ ACTIVE-NOTE is the index (the key) of the last visited note."
 
 (defvar stamps-quote-regexp
   (concat
-   ;; (1) indentation             
+   ;; (1) indentation
    "^\\([ \t]*\\)#\\+BEGIN_QUOTE[ \t]*"
    ;; (2) body
    "\\(\\(?:.\\|\n\\)*?\n\\)??[ \t]*#\\+END_QUOTE"))
@@ -364,7 +368,9 @@ current buffer's file name."
 (defun stamps-load-container (container sources resources)
   "RESOURCES are files or urls."
   (let ((index 0)
-	(citekey (stamps-container-citekey container)))
+	(citekey (stamps-container-citekey container))
+	(note-vector (make-vector (length sources) nil)))
+    (setf (stamps-container-notes container) note-vector)
     (while-let ((note (stamps-source-to-note (pop sources)))
 		(file (stamps-note-file note)))
       ;; TODO: sort notes by timestamp and page coordinates.
@@ -491,13 +497,14 @@ current buffer's file name."
 				    (file  (file-name-nondirectory path))
 				    (line (number-to-string (stamps-note-line n))))
 			       `(,(concat file "  :: " line) ,path)))
-			   (hash-table-values
-			    notes)))
+			   ;; (hash-table-values
+			    ;; notes)
+			   notes))
 	 (completion-extra-properties
 	  (list :annotation-function
 		(lambda (n)
 		  (format "%10s" (car (alist-get n locators nil nil 'string=))))))
-	 (note (cl-third (assoc (completing-read "note:" locators) locators))))
+	 (note (cl-second (assoc (completing-read "note:" locators) locators))))
     (find-file note)))
 
 (defun stamps-open-citekey-note()
