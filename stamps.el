@@ -425,6 +425,24 @@ current buffer's file name."
     (or (stamps-get-from-table citekey 'containers)
 	(stamps-load-citekey citekey))))
 
+;;; Filter Notes
+(defun stamps-filter-by-directory ()
+  ""
+  (interactive)
+  (when-let* ((container stamps-active-container)
+	      (notes (stamps-container-notes container))
+	      (directories (seq-map (lambda (n)
+				      (file-name-directory
+				       (stamps-note-file n)) 
+				      ) notes))
+	      (directories-non-dups (delete-dups dos))
+	      (selected-dir (completing-read "Directory:" directories-non-dups))
+	      (filtered-notes (seq-filter (lambda (n)
+					    (string-match-p selected-dir (stamps-note-file n))
+					    ) notes)))
+    (setf (stamps-container-notes container) filtered-notes)
+    (setf (stamps-container-number-of-notes container) (length filtered-notes))))
+
 ;;;; Helpers - Create Notes
 (defun stamps-get-pdf-window ()
   (some-window (lambda (w)
