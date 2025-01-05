@@ -51,7 +51,7 @@ usually an xref struct used  for navigating to the note."
 (cl-defstruct (stamps-container
 	       (:constructor stamps-make-container (&key
 						    citekey
-						    name
+						    regexp
 						    type
 						    notes)))
   "NOTES is a  hash table of notes, each key  is a number describing
@@ -60,13 +60,11 @@ the number of notes; RESOURCES is a list of files or urls related
 to  the citekey;  ACTIVE-RESOURCE is  the last  visited resource;
 ACTIVE-NOTE is the index (the key) of the last visited note."
   citekey
-  name
+  regexp
   (notes nil)
   (number-of-notes 0)
   (resources)
-  (resources-relative-path)
   (active-resource)
-  (sorted-note-keys)
   (active-note 0)
   type)
 
@@ -264,11 +262,19 @@ current buffer's file name."
 	  (or (stamps-get-from-table citekey 'files)
 	      (stamps-get-from-table citekey 'urls))))))
 
-(defun stamps-fetch-sources (citekey &optional dir)
+(defun stamps-fetch-citekey-sources (citekey &optional dir)
   "Search `stamps-directory' for files that match a CITEKEY based regexp."
   (let* ((citekey-regexp (stamps-create-find-citekey-regexp citekey))
 	 (matches  (xref-matches-in-directory
 		    citekey-regexp
+		    "*"
+		    (or dir stamps-directory)
+		    nil)))
+    matches))
+
+(defun stamps-fetch-sources (regexp &optional dir)
+  (let* ((matches  (xref-matches-in-directory
+		    regexp
 		    "*"
 		    (or dir stamps-directory)
 		    nil)))
@@ -350,22 +356,28 @@ current buffer's file name."
 	   (line (xref-file-location-line (xref-item-location source))))
       (cl-multiple-value-bind (page timestamp precise-locator type)
 	  (stamps-extract-from-summary summary)
-	(if timestamp
-	    (stamps-make-note :type 'media
-			      :locator page
-			      :precise-locator timestamp
-			      :file file
-			      :line line
-			      :source source)
-	  (when page
-	    (stamps-make-note  :type 'document
-			       :locator page
-			       :precise-locator precise-locator
-			       :file file
-			       :line line
-			       :source source)))))))
+	(cond
+	 (timestamp
+	  (stamps-make-note :type 'media
+			    :locator page
+			    :precise-locator timestamp
+			    :file file
+			    :line line
+			    :source source))
+	 (page
+	  (stamps-make-note  :type 'document
+			     :locator page
+			     :precise-locator precise-locator
+			     :file file
+			     :line line
+			     :source source))
+	 (t
+	  (stamps-make-note  :type 'regexp
+			     :file file
+			     :line line
+			     :source source)))))))
 
-(defun stamps-load-container (container sources resources)
+(defun stamps-load-container (container sources &optional resources)
   "RESOURCES are files or urls."
   (let ((index 0)
 	(citekey (stamps-container-citekey container))
@@ -374,7 +386,6 @@ current buffer's file name."
     (setf (stamps-container-notes container) note-vector)
     (while-let ((note (stamps-source-to-note (pop sources)))
 		(file (stamps-note-file note)))
-      ;; TODO: sort notes by timestamp and page coordinates.
       (stamps-container-add-note container index note)
       (unless type
 	(setq type (stamps-note-type note)))
@@ -382,11 +393,11 @@ current buffer's file name."
 	  (stamps-put-in-table file (cl-union value (list citekey)) 'files)
 	(stamps-put-in-table file (list citekey) 'files))
       (cl-incf index))
-
     ;; Set container type
     (setf (stamps-container-type container) type)
     ;; Sort
     (stamps-sort-container-notes container)
+   ;; Add resources
     (when resources
       (setf (stamps-container-resources container) resources)
       (while-let ((resource (pop resources)))
@@ -397,7 +408,7 @@ current buffer's file name."
 `stamps-directory' .Return the container associated with citekey."
   (when citekey
     (stamps-load-resources)
-    (let* ((sources (stamps-fetch-sources citekey))
+    (let* ((sources (stamps-fetch-citekey-sources citekey))
 	   (container (stamps-make-container :citekey citekey))
 	   (resources (stamps-get-resources-from-citekey citekey )))
       (stamps-load-container container sources resources)
@@ -405,6 +416,17 @@ current buffer's file name."
 	       (stamps-container-number-of-notes container)
 	       citekey)
       (stamps-put-in-table citekey container 'containers))))
+
+(defun stamps-load-regexp ()
+  (interactive)
+  (let* ((regexp (read-string "Regexp:"))
+	 (sources (stamps-fetch-sources regexp))
+	 (container  (when (not (string-empty-p regexp))
+		       (stamps-make-container :regexp regexp))))
+
+    (stamps-load-container container sources)
+    (setq stamps-active-container
+	  container)))
 
 (defun stamps-load (&optional resource)
   (interactive)
@@ -416,6 +438,8 @@ current buffer's file name."
     (when citekey
       (setq stamps-active-container
 	    (stamps-load-citekey citekey)))))
+
+
 
 (defun stamps-get-container (&optional citekey)
   ""
@@ -433,7 +457,7 @@ current buffer's file name."
 	      (notes (stamps-container-notes container))
 	      (directories (seq-map (lambda (n)
 				      (file-name-directory
-				       (stamps-note-file n)) 
+				       (stamps-note-file n))
 				      ) notes))
 	      (directories-non-dups (delete-dups dos))
 	      (selected-dir (completing-read "Directory:" directories-non-dups))
@@ -504,11 +528,13 @@ current buffer's file name."
 (defun stamps-sort-container-notes (container)
   (let ((type (stamps-container-type container))
 	(notes (stamps-container-notes container)))
-  (pcase type
-    (document
-     (setf (stamps-container-notes container)
-	  (sort notes 'stamps-sort-notes-by-page)))
-    (media))))
+    (pcase type
+      ('document
+       (setf (stamps-container-notes container)
+	     (sort notes 'stamps-sort-notes-by-page)))
+      ('media
+       (setf (stamps-container-notes container)
+	     (sort notes 'stamps-sort-notes-by-timestamp))))))
 
 (defun stamps-sort-notes-by-page (a b)
   "Sort notes by page and coordinante position"
@@ -602,6 +628,16 @@ current buffer's file name."
 	  (with-selected-window w
 	    (stamps-goto-pdf-page citekey-at-point locator precise-locator)))))))
 
+
+(defun stamps-next-in-active-container ()
+  (interactive)
+  (let* ((container stamps-active-container)
+	 (active-note (stamps-container-active-note container))
+	 (number-of-notes (stamps-container-number-of-notes container))
+	 (new-index (mod (1+ active-note) number-of-notes))
+	 (note (seq-elt  (stamps-container-notes container) new-index)))
+    (stamps-goto-note note 'file)))
+
 (defun stamps-next-mpv-in-file(&optional previous)
   (interactive)
   (when (search-forward-regexp stamps-timestamp-stamp-regexp nil t )
@@ -648,13 +684,15 @@ current buffer's file name."
     (when stamps-mode
       (stamps-goto-note note 'file))
     (stamps-goto-note note 'document)))
- 
+
 (defun stamps-goto-note (note where)
   (cl-case where
     (file
      (let ((source (stamps-note-source note)))
-       (with-selected-window (stamps-get-note-window)
-	 (xref--show-location (xref-item-location source) t))))
+       (if (equal 'regexp (stamps-note-type note))
+	   (xref--show-location (xref-item-location source) t)
+	 (with-selected-window (stamps-get-note-window)
+	   (xref--show-location (xref-item-location source) t)))))
     (document
      (let* ((page (stamps-note-locator note))
 	    (summary (xref-item-summary (stamps-note-source note)))
@@ -665,7 +703,7 @@ current buffer's file name."
 
 (defun stamps-goto-related-note (page &optional window)
   (interactive))
- 
+
 ;;;; Create MPV notes
 (defun stamps-annotate-mpv ()
   (interactive)
