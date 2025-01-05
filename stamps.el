@@ -437,11 +437,13 @@ current buffer's file name."
   (other-window-for-scrolling))
 
 (defun stamps-get-note-window ()
-  (some-window (lambda (w)
-		 (with-selected-window w
-		   (and
-		    (not buffer-read-only)
-		    (not (equal major-mode 'pdf-view-mode)))))))
+  (or
+   (some-window (lambda (w)
+		  (with-selected-window w
+		    (and
+		     (not buffer-read-only)
+		     (not (equal major-mode 'pdf-view-mode)))))))
+  (stamps-get-other-window))
 
 ;;;; Creating PDF notes
 ;; NOTE: Creating notes for a PDF  document involves checking if the current
@@ -557,6 +559,7 @@ current buffer's file name."
 	 (locators (mapcar 'stamps-note-source (hash-table-values notes)) ))
     (xref-show-xrefs locators nil)))
 
+
 (defun stamps-next-in-file(&optional previous)
   (interactive)
   (when (search-forward-regexp "\\(\\[cite:@.*\\)\ \\(.*\\)\\]" nil t (if previous -1 1))
@@ -611,20 +614,27 @@ current buffer's file name."
 	      (note (aref (stamps-container-notes container) new-index)))
     (setf (stamps-container-active-note container) new-index)
     (message "%s/%s" (1+ new-index) number-of-notes)
+    (when stamps-mode
+      (stamps-goto-note note 'file))
     (stamps-goto-note note 'document)))
-
+ 
 (defun stamps-goto-note (note where)
   (cl-case where
     (file
      (let ((source (stamps-note-source note)))
-       (xref--show-location (xref-item-location source) t)))
+       (with-selected-window (stamps-get-note-window)
+	 (xref--show-location (xref-item-location source) t))))
     (document
      (let* ((page (stamps-note-locator note))
 	    (summary (xref-item-summary (stamps-note-source note)))
 	    (citekey (stamps-extract-citekey summary))
 	    (coords (stamps-note-precise-locator note)))
-       (stamps-goto-pdf-page citekey page coords)))))
+       (with-selected-window (stamps-get-pdf-window)
+	 (stamps-goto-pdf-page citekey page coords))))))
 
+(defun stamps-goto-related-note (page &optional window)
+  (interactive))
+ 
 ;;;; Create MPV notes
 (defun stamps-annotate-mpv ()
   (interactive)
