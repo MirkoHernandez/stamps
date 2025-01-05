@@ -527,6 +527,12 @@ current buffer's file name."
 		(t t)))
       (<  page-a page-b))))
 
+(defun stamps-sort-notes-by-timestamp (a b)
+  "Sort notes by timestamp."
+  (let ((timestamp-a (stamps-note-precise-locator a))
+	(timestamp-b (stamps-note-precise-locator b)))
+    (string< timestamp-a timestamp-b)))
+
 ;;;; Helpers -- goto notes
 (defun stamps-display-pdf-page (file page coords)
   (when file
@@ -604,9 +610,16 @@ current buffer's file name."
 	   (match3 (substring-no-properties (match-string 3)))
 	   (resources (stamps-get-resources-from-citekey citekey))
 	   (container  (or (stamps-get-from-table  citekey 'containers)
-			   (stamps-load-citekey citekey))))
-     (mpv-play match2)
-     (mpv-seek match3))))
+			   (stamps-load-citekey citekey)))
+	   (path (mpv-get-property "path"))
+	   (file (car  (-filter
+			(lambda (s)
+			  (string-match-p match2 s))
+			resources ))))
+      (when file
+	(unless (equal path file)
+	  (mpv-play file))
+	 (mpv-seek match3)))))
 
 (defun stamps-goto-pdf-page (citekey page coords)
   (interactive)
