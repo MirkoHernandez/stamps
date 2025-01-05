@@ -369,16 +369,24 @@ current buffer's file name."
   "RESOURCES are files or urls."
   (let ((index 0)
 	(citekey (stamps-container-citekey container))
-	(note-vector (make-vector (length sources) nil)))
+	(note-vector (make-vector (length sources) nil))
+	type)
     (setf (stamps-container-notes container) note-vector)
     (while-let ((note (stamps-source-to-note (pop sources)))
 		(file (stamps-note-file note)))
       ;; TODO: sort notes by timestamp and page coordinates.
       (stamps-container-add-note container index note)
+      (unless type
+	(setq type (stamps-note-type note)))
       (if-let (value (stamps-get-from-table file 'files))
 	  (stamps-put-in-table file (cl-union value (list citekey)) 'files)
 	(stamps-put-in-table file (list citekey) 'files))
       (cl-incf index))
+
+    ;; Set container type
+    (setf (stamps-container-type container) type)
+    ;; Sort
+    (stamps-sort-container-notes container)
     (when resources
       (setf (stamps-container-resources container) resources)
       (while-let ((resource (pop resources)))
@@ -472,6 +480,32 @@ current buffer's file name."
 (defun stamps-get-media-path ()
   (require 'mpv)
   (mpv-get-property "path"))
+
+(defun stamps-sort-container-notes (container)
+  (let ((type (stamps-container-type container))
+	(notes (stamps-container-notes container)))
+  (pcase type
+    (document
+     (setf (stamps-container-notes container)
+	  (sort notes 'stamps-sort-notes-by-page)))
+    (media))))
+
+(defun stamps-sort-notes-by-page (a b)
+  "Sort notes by page and coordinante position"
+  (let ((page-a (string-to-number (stamps-note-locator a)))
+	(page-b (string-to-number (stamps-note-locator b))))
+
+    (if (= page-a page-b)
+	(let ((coord-a (stamps-note-precise-locator a))
+	      (coord-b (stamps-note-precise-locator b)))
+	  (cond ((and coord-a coord-b)
+		 (< (caar coord-a) (caar coord-b)))
+		(coord-a
+		 nil)
+		(coord-b
+		 t)
+		(t t)))
+      (<  page-a page-b))))
 
 ;;;; Helpers -- goto notes
 (defun stamps-display-pdf-page (file page coords)
@@ -572,9 +606,11 @@ current buffer's file name."
   (interactive)
   (when-let* ((container (stamps-get-container))
 	      (active-note (stamps-container-active-note container))
-	      (new-index (1+ active-note))
-	      (note (gethash active-note (stamps-container-notes container))))
+	      (number-of-notes (stamps-container-number-of-notes container))
+	      (new-index (mod (1+ active-note) number-of-notes))
+	      (note (aref (stamps-container-notes container) new-index)))
     (setf (stamps-container-active-note container) new-index)
+    (message "%s/%s" (1+ new-index) number-of-notes)
     (stamps-goto-note note 'document)))
 
 (defun stamps-goto-note (note where)
