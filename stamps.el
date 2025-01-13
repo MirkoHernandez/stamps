@@ -479,13 +479,11 @@ current buffer's file name."
   (other-window-for-scrolling))
 
 (defun stamps-get-note-window ()
-  (or
-   (some-window (lambda (w)
-		  (with-selected-window w
-		    (and
-		     (not buffer-read-only)
-		     (not (equal major-mode 'pdf-view-mode)))))))
-  (stamps-get-other-window))
+  (some-window (lambda (w)
+		 (with-selected-window w
+		   (and
+		    (not buffer-read-only)
+		    (not (equal major-mode 'pdf-view-mode)))))))
 
 ;;;; Creating PDF notes
 ;; NOTE: Creating notes for a PDF  document involves checking if the current
