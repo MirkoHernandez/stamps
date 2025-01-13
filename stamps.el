@@ -677,9 +677,10 @@ current buffer's file name."
   (when-let* ((container (stamps-get-container))
 	      (active-note (stamps-container-active-note container))
 	      (number-of-notes (stamps-container-number-of-notes container))
-	      (new-index (mod (1+ active-note) number-of-notes))
+	      (new-index (max (1+ active-note) number-of-notes))
 	      (note (aref (stamps-container-notes container) new-index)))
     (setf (stamps-container-active-note container) new-index)
+    (setf stamps-active-container container)
     (message "%s/%s" (1+ new-index) number-of-notes)
     (when stamps-mode
       (stamps-goto-note note 'file))
