@@ -1,8 +1,8 @@
-# Stamps (WIP)
+# Stamps (Work In Progress)
 
-Stamps is an annotation tool that can also be used for note-taking, it
-is meant to be used with notes (any file) that are scattered across
-multiple directories.
+Stamps is an annotation tool that can also be used for note-taking.
+Annotations can be created in notes or files scattered across
+different directories.
 
 # Features
 
