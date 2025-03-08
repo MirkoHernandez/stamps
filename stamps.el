@@ -98,10 +98,8 @@ ACTIVE-NOTE is the index (the key) of the last visited note."
 (cl-defmethod stamps-container-add-note ((container stamps-container)
 					 index note)
   (pcase-let (((cl-struct stamps-container notes number-of-notes) container))
-    ;; (puthash index  note notes)
     (aset notes index note)
     (setf (stamps-container-number-of-notes container)
-	  ;; (length (hash-table-keys notes))
 	  (length notes))))
 
 ;;;; Regexps
@@ -316,7 +314,7 @@ current buffer's file name."
 
 (defun stamps-extract-locator (str)
   "Extract note precise locator from STR."
-  (cond ((and str (string-match "\\((.*)\\)" str))
+  (cond ((and str (string-match "\\(([0-9. ]*)\\)" str))
 	 (let ((match (match-string 1 str)))
 	   (when match
 	     (substring-no-properties
@@ -344,7 +342,7 @@ current buffer's file name."
 	 (type (cond (timestamp 'media)
 		     (page 'document)))
 	 (precise-locator-str (stamps-extract-locator summary))
-	 (precise-locator (and precise-locator-str (read precise-locator-str))))
+	 (precise-locator (and precise-locator-str page (read precise-locator-str))))
     (cl-values page timestamp precise-locator type)))
 
 ;;;; Get notes
@@ -542,7 +540,12 @@ current buffer's file name."
     (if (= page-a page-b)
 	(let ((coord-a (stamps-note-precise-locator a))
 	      (coord-b (stamps-note-precise-locator b)))
-	  (cond ((and coord-a coord-b)
+	  (cond ((and (listp coord-a) (listp coord-b)
+		      (listp (car coord-a))
+		      (listp (car coord-b))
+		      (numberp (caar coord-a))
+		      (numberp (caar coord-b)))
+		 ;; both pages have coords.
 		 (< (caar coord-a) (caar coord-b)))
 		(coord-a
 		 nil)
@@ -666,7 +669,7 @@ current buffer's file name."
       (when coords
 	(pdf-view-deactivate-region)
 	(setq pdf-view-active-region
-	      coords)
+	      (list coords))
 	(when (pdf-view-active-region-p)
 	  (pdf-view-display-region))))))
 
