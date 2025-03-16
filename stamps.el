@@ -641,7 +641,9 @@ current buffer's file name."
 
 (defun stamps-next-mpv-in-file(&optional previous)
   (interactive)
-  (when (search-forward-regexp stamps-timestamp-stamp-regexp nil t )
+  (when (if previous
+	    (search-backward-regexp stamps-timestamp-stamp-regexp nil t )
+	  (search-forward-regexp stamps-timestamp-stamp-regexp nil t ))
     (let* ((citekey (substring-no-properties (match-string 1)))
 	   (match2 (substring-no-properties (match-string 2)))
 	   (match3 (substring-no-properties (match-string 3)))
@@ -656,7 +658,11 @@ current buffer's file name."
       (when file
 	(unless (equal path file)
 	  (mpv-play file))
-	 (mpv-seek match3)))))
+	(mpv-seek match3)))))
+
+(defun stamps-previous-mpv-in-file(&optional previous)
+  (interactive)
+  (stamps-next-mpv-in-file t))
 
 (defun stamps-goto-pdf-page (citekey page coords)
   (interactive)
