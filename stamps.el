@@ -687,6 +687,19 @@ current buffer's file name."
       (stamps-goto-note note 'file))
     (stamps-goto-note note 'document)))
 
+(defun stamps-goto-last-in-pdf (&optional previous)
+  (interactive)
+  (when-let* ((container (stamps-get-container))
+	      (number-of-notes (stamps-container-number-of-notes container))
+	      (new-index (1- number-of-notes))
+	      (note (aref (stamps-container-notes container) new-index)))
+    (setf (stamps-container-active-note container) new-index)
+    (setf stamps-active-container container)
+    (message "%s/%s" (1+ new-index) number-of-notes)
+    (when stamps-mode
+      (stamps-goto-note note 'file))
+    (stamps-goto-note note 'document)))
+
 (defun stamps-goto-note (note where)
   (cl-case where
     (file
