@@ -89,10 +89,19 @@ ACTIVE-NOTE is the index (the key) of the last visited note."
   (pcase-let (((cl-struct stamps-container notes) container))))
 
 (defun stamps-filter-notes-by-file (container file)
-  (let* ((notes (hash-table-values (stamps-container-notes container)))
+  (let* ((notes (stamps-container-notes container))
 	 (file (expand-file-name  file)))
-    (-filter (lambda (n)
+    (seq-filter (lambda (n)
 	       (equal file (stamps-note-file n))
+	       ) notes)))
+
+(defun stamps-filter-notes-by-page (container page)
+  (let* ((notes (stamps-container-notes container))
+	 (page (if (numberp page )
+		   (number-to-string page)
+		 page) ))
+    (seq-filter (lambda (n)
+	       (equal page (stamps-note-locator n))
 	       ) notes)))
 
 (cl-defmethod stamps-container-add-note ((container stamps-container)
@@ -476,12 +485,16 @@ current buffer's file name."
     (split-window-right))
   (other-window-for-scrolling))
 
-(defun stamps-get-note-window ()
-  (some-window (lambda (w)
-		 (with-selected-window w
-		   (and
-		    (not buffer-read-only)
-		    (not (equal major-mode 'pdf-view-mode)))))))
+(defun stamps-get-note-window (&optional force)
+  (let ((result (some-window (lambda (w)
+			       (with-selected-window w
+				 (and
+				  (not buffer-read-only)
+				  (not (equal major-mode 'pdf-view-mode))))))))
+
+    (if force
+	(or  result 	 (stamps-get-other-window))
+      result))) 
 
 ;;;; Creating PDF notes
 ;; NOTE: Creating notes for a PDF  document involves checking if the current
