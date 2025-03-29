@@ -393,6 +393,7 @@ current buffer's file name."
     (setf (stamps-container-notes container) note-vector)
     (while-let ((note (stamps-source-to-note (pop sources)))
 		(file (stamps-note-file note)))
+      (puthash file citekey (stamps-table-note-files stamps-tables))
       (stamps-container-add-note container index note)
       (unless type
 	(setq type (stamps-note-type note)))
@@ -404,7 +405,7 @@ current buffer's file name."
     (setf (stamps-container-type container) type)
     ;; Sort
     (stamps-sort-container-notes container)
-   ;; Add resources
+    ;; Add resources
     (when resources
       (setf (stamps-container-resources container) resources)
       (while-let ((resource (pop resources)))
@@ -440,13 +441,16 @@ current buffer's file name."
   (let* ((filename (or (and resource (expand-file-name resource)) (buffer-file-name)))
 	 (citekey-from-current-file (and filename  (stamps-get-citekey filename)))
 	 (citekey (or citekey-from-current-file
-
 		      (completing-read "citekey:" (stamps-get-citekeys-with-resource) ))))
     (when citekey
       (setq stamps-active-container
 	    (stamps-load-citekey citekey)))))
 
-
+(defun stamps-load-from-current-file ()
+  (let* ((filename (buffer-file-name))
+         (citekey (gethash filename (stamps-table-note-files stamps-tables ))))
+    (when citekey
+      (stamps-load-citekey citekey))))
 
 (defun stamps-get-container (&optional citekey)
   ""
@@ -623,7 +627,6 @@ current buffer's file name."
 	 (locators (mapcar 'stamps-note-source (hash-table-values notes)) ))
     (xref-show-xrefs locators nil)))
 
-
 (defun stamps-next-in-file(&optional previous)
   (interactive)
   (when (search-forward-regexp "\\(\\[cite:@.*\\)\ \\(.*\\)\\]" nil t (if previous -1 1))
@@ -641,7 +644,6 @@ current buffer's file name."
 		     (stamps-get-other-window))))
 	  (with-selected-window w
 	    (stamps-goto-pdf-page citekey-at-point locator precise-locator)))))))
-
 
 (defun stamps-next-in-active-container ()
   (interactive)
@@ -668,6 +670,8 @@ current buffer's file name."
 			(lambda (s)
 			  (string-match-p match2 s))
 			resources ))))
+      (when container 
+	(setf stamps-active-container container))
       (when file
 	(unless (equal path file)
 	  (mpv-play file))
@@ -752,7 +756,7 @@ current buffer's file name."
      (let ((source (stamps-note-source note)))
        (if (equal 'regexp (stamps-note-type note))
 	   (xref--show-location (xref-item-location source) t)
-	 (with-selected-window (stamps-get-note-window)
+	 (with-selected-window (stamps-get-note-window :force)
 	   (xref--show-location (xref-item-location source) t)))))
     (document
      (let* ((page (stamps-note-locator note))
@@ -762,8 +766,20 @@ current buffer's file name."
        (with-selected-window (stamps-get-pdf-window)
 	 (stamps-goto-pdf-page citekey page coords))))))
 
-(defun stamps-goto-related-note (page &optional window)
-  (interactive))
+(defun stamps-goto-related-note (&optional container)
+  (interactive)
+  (let* ((container (or container stamps-active-container))
+	 (note-index (stamps-container-active-note container))
+	 (note (aref (stamps-container-notes container )note-index)))
+    (stamps-goto-note note 'file)))
+
+(defun stamps-goto-related-page (&optional page)
+  (interactive)
+  (when-let* ((filename (buffer-file-name))
+	      (citekey-from-current-file (and filename  (stamps-get-citekey filename)))
+	      (notes (stamps-filter-notes-by-page stamps-active-container page)))
+    (message "%s notes in this page." (length notes))
+    (stamps-goto-note (car notes) 'file))) 
 
 ;;;; Create MPV notes
 (defun stamps-annotate-mpv ()
@@ -801,8 +817,8 @@ current buffer's file name."
   :keymap stamps-mode-map
   (if stamps-mode
       (progn
-	(add-hook 'after-save-hook 'stamps-load-file-notes)
-	(advice-add 'pdf-view-goto-page :after 'stamps-goto-related-note))
+	(add-hook 'after-save-hook 'stamps-load-from-current-file)
+	(advice-add 'pdf-view-goto-page :after 'stamps-goto-related-page))
     (progn
-      (remove-hook 'after-save-hook 'stamps-load-file-notes)
-      (advice-remove 'pdf-view-goto-page  'stamps-goto-related-note))))
+      (remove-hook 'after-save-hook 'stamps-load-from-current-file)
+      (advice-remove 'pdf-view-goto-page  'stamps-goto-related-page))))
