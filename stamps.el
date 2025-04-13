@@ -237,11 +237,15 @@ current buffer's file name."
       (stamps-get-loaded-citekey resource)
     (if citekey
 	citekey
-      (stamps-load-resources)
+      (if-let ((w (stamps-get-pdf-window)))
+	  (with-selected-window w)
+	(stamps-load)
+	(stamps-load-resources))
       (let* (;; files or urls.
 	     (resources (if is-url
 			    (stamps-get-table 'urls)
 			  (stamps-get-table 'files)))
+	     (loaded-resources  (stamps-get-table 'loaded-resources))
 	     result)
 	(maphash (lambda (key value)
 		   (when (or (member filename value)
