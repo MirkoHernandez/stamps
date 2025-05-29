@@ -239,7 +239,6 @@ current buffer's file name."
 	citekey
       (if-let ((w (stamps-get-pdf-window)))
 	  (with-selected-window w)
-	(stamps-load)
 	(stamps-load-resources))
       (let* (;; files or urls.
 	     (resources (if is-url
@@ -486,7 +485,9 @@ current buffer's file name."
 (defun stamps-get-pdf-window ()
   (some-window (lambda (w)
 		 (with-selected-window w
-		   (equal major-mode 'pdf-view-mode)))))
+		   (or
+		    (equal major-mode 'doc-view-mode)
+		    (equal major-mode 'pdf-view-mode))))))
 
 (defun stamps-get-other-window ()
   (when (one-window-p)
@@ -644,8 +645,10 @@ current buffer's file name."
 			   (stamps-load-citekey citekey-at-point))))
       (cl-multiple-value-bind (locator timestamp precise-locator type)
 	  (stamps-extract-from-summary str)
-	(let ((w (or (stamps-get-pdf-window)
-		     (stamps-get-other-window))))
+	(let ((w
+	       (or (when current-prefix-arg  (get-buffer-window))
+		   (stamps-get-pdf-window)
+		   (stamps-get-other-window))))
 	  (with-selected-window w
 	    (stamps-goto-pdf-page citekey-at-point locator precise-locator)))))))
 
@@ -698,7 +701,9 @@ current buffer's file name."
 	(setq pdf-view-active-region
 	      (list coords))
 	(when (pdf-view-active-region-p)
-	  (pdf-view-display-region))))))
+	  (pdf-view-display-region))))
+    (when (and page (equal major-mode 'doc-view-mode))
+      (doc-view-goto-page page))))
 
 (defun stamps-goto-next-in-pdf (&optional previous)
   (interactive)
