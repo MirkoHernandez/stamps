@@ -487,7 +487,8 @@ current buffer's file name."
 		 (with-selected-window w
 		   (or
 		    (equal major-mode 'doc-view-mode)
-		    (equal major-mode 'pdf-view-mode))))))
+		    (equal major-mode 'pdf-view-mode)
+		    (equal major-mode 'reader-mode))))))
 
 (defun stamps-get-other-window ()
   (when (one-window-p)
@@ -512,7 +513,12 @@ current buffer's file name."
 (defun stamps-pdf-page-data ()
   (when-let ((w (stamps-get-pdf-window)))
     (with-selected-window w
-      (let ((page (number-to-string (pdf-view-current-page))) ; page is the locator
+      (let ((page (number-to-string
+		   (or
+		    (and (eq major-mode 'pdf-view-mode)
+			 (pdf-view-current-page))
+		    (and (eq major-mode 'reader-mode)
+			 (reader-current-pagenumber))))); page is the locator
 	    (coords (when  (pdf-view-active-region-p) ; coords is the precise locator.
 		      (pdf-view-active-region)))
 	    (citekey (stamps-get-citekey)))
@@ -702,6 +708,8 @@ current buffer's file name."
 	      (list coords))
 	(when (pdf-view-active-region-p)
 	  (pdf-view-display-region))))
+    (when (and page (equal major-mode 'reader-mode))
+      (reader-goto-page page))
     (when (and page (equal major-mode 'doc-view-mode))
       (doc-view-goto-page page))))
 
